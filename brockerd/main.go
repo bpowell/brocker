@@ -46,7 +46,7 @@ func echoServer(c net.Conn) {
 
 func parent(args []string) {
 	fmt.Println("running parent")
-	runcmd := "/home/yup/p/containers/run/run"
+	runcmd := "/home/yup/p/containers/brocker-run/brocker-run"
 
 	cmd := &exec.Cmd{
 		Path: runcmd,
