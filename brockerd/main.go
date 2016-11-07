@@ -25,6 +25,7 @@ type Container struct {
 	Pid         int
 	IP          string
 	StartTime   time.Time
+	VEth        string
 }
 
 var services map[string]Service
@@ -32,6 +33,7 @@ var containers []Container
 
 const (
 	bridgeNameBase = "brocker"
+	vethNameBase   = "veth"
 )
 
 func init() {
@@ -138,6 +140,25 @@ func run(c Container) {
 	}
 
 	c.Pid = cmd.Process.Pid
+	c.VEth = fmt.Sprintf("%s%d", vethNameBase, len(containers))
+	link := strings.Split(fmt.Sprintf("/sbin/ip link add name %s type veth peer name veth1 netns %d", c.VEth, c.Pid), " ")
+	if err := exec.Command(link[0], link[1:]...).Run(); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	uplink := strings.Split(fmt.Sprintf("/sbin/ifconfig %s up", c.VEth), " ")
+	if err := exec.Command(uplink[0], uplink[1:]...).Run(); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	bridge := strings.Split(fmt.Sprintf("/sbin/ip link set %s master %s", c.VEth, services[c.ServiceName].BridgeName), " ")
+	if err := exec.Command(bridge[0], bridge[1:]...).Run(); err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	c.StartTime = time.Now()
 	containers = append(containers, c)
 	fmt.Println(cmd.Process.Pid)
