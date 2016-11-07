@@ -28,7 +28,7 @@ type Container struct {
 }
 
 var services map[string]Service
-var containers []Containter
+var containers []Container
 
 func init() {
 	services = make(map[string]Service)
