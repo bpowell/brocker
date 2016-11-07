@@ -44,7 +44,7 @@ func (c *Container) setName() {
 	value := fmt.Sprintf("%s%s%s", c.Name, c.StartTime, c.Command)
 	sha := sha1.New()
 	sha.Write([]byte(value))
-	c.Name = hex.EncodeToString(sha.Sum(nil))
+	c.Name = hex.EncodeToString(sha.Sum(nil))[:8]
 }
 
 func init() {
@@ -55,6 +55,7 @@ func main() {
 	http.HandleFunc("/api/v1/service/add", service_add)
 	http.HandleFunc("/api/v1/container/run", container_run)
 	http.HandleFunc("/api/v1/container/list", container_list)
+	http.HandleFunc("/api/v1/container/exec", container_exec)
 	err := http.ListenAndServe(":3000", nil)
 	if err != nil {
 		fmt.Println(err)
@@ -132,6 +133,28 @@ func container_list(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(containers); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+}
+
+func container_exec(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Invalid Request!", http.StatusMethodNotAllowed)
+		return
+	}
+
+	data := struct {
+		Name string `json:"name"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for _, c := range containers {
+		if c.Name == data.Name {
+			w.Write([]byte(fmt.Sprintf("%d", c.Pid)))
+			return
+		}
 	}
 }
 
