@@ -3,12 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 	"syscall"
+	"time"
 )
 
 type Service struct {
@@ -18,7 +18,17 @@ type Service struct {
 	ServicePid int
 }
 
+type Container struct {
+	Name        string `json:"name"`
+	ServiceName string `json:"service-name"`
+	Command     string `json:"command"`
+	Pid         int
+	IP          string
+	StartTime   time.Time
+}
+
 var services map[string]Service
+var containers []Containter
 
 func init() {
 	services = make(map[string]Service)
@@ -26,6 +36,7 @@ func init() {
 
 func main() {
 	http.HandleFunc("/api/v1/service/add", service_add)
+	http.HandleFunc("/api/v1/container/run", container_run)
 	err := http.ListenAndServe(":3000", nil)
 	if err != nil {
 		fmt.Println(err)
@@ -57,6 +68,28 @@ func service_add(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+func container_run(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Invalid Request!", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var c Container
+	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if _, ok := services[c.ServiceName]; ok == false {
+		http.Error(w, "Service does not exists", http.StatusInternalServerError)
+		return
+	}
+
+	go run(c)
+
+	w.WriteHeader(http.StatusCreated)
+}
+
 func service_create_network(s Service) error {
 	create_bridge := strings.Split(fmt.Sprintf("/sbin/ip link add name %s type bridge", s.BridgeName), " ")
 	set_bridge_up := strings.Split(fmt.Sprintf("/sbin/ip link set %s up", s.BridgeName), " ")
@@ -84,31 +117,13 @@ func service_create_network(s Service) error {
 	return nil
 }
 
-func echoServer(c net.Conn) {
-	for {
-		buf := make([]byte, 512)
-		nr, err := c.Read(buf)
-		if err != nil {
-			return
-		}
-
-		data := buf[0:nr]
-		raw := strings.Split(string(data), " ")
-
-		println("Server got:", string(data))
-		if raw[0] == "run" {
-			parent(raw[1:])
-		}
-	}
-}
-
-func parent(args []string) {
+func run(c Container) {
 	fmt.Println("running parent")
 	runcmd := "/home/yup/p/containers/brocker-run/brocker-run"
 
 	cmd := &exec.Cmd{
 		Path: runcmd,
-		Args: append([]string{runcmd}, args...),
+		Args: append([]string{runcmd}, c.Command),
 	}
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -119,9 +134,12 @@ func parent(args []string) {
 	}
 
 	if err := cmd.Start(); err != nil {
-		return
+		fmt.Println(err)
 	}
 
+	c.Pid = cmd.Process.Pid
+	c.StartTime = time.Now()
+	containers = append(containers, c)
 	fmt.Println(cmd.Process.Pid)
 
 	cmd.Wait()
