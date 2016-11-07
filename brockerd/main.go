@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -11,9 +12,9 @@ import (
 )
 
 type Service struct {
-	Name       string
-	BridgeName string
-	BridgeIP   net.IP
+	Name       string `json:"name"`
+	BridgeName string `json:"bridge-name"`
+	BridgeIP   string `json:"bridge-ip"`
 	ServicePid int
 }
 
@@ -37,19 +38,18 @@ func service_add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.ParseForm()
 	var s Service
-	s.Name = r.PostFormValue("name")
+	if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	if _, ok := services[s.Name]; ok {
 		http.Error(w, "Service already exists", http.StatusInternalServerError)
 		return
 	}
 
-	s.BridgeName = r.PostFormValue("bridge-name")
-	s.BridgeIP = net.ParseIP(r.PostFormValue("bridge-ip"))
-
-	err := service_create_network(s)
-	if err != nil {
+	if err := service_create_network(s); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

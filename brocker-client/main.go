@@ -1,46 +1,49 @@
 package main
 
 import (
-	"io"
-	"log"
-	"net"
+	"bytes"
+	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
-	"strings"
 )
 
-func reader(r io.Reader) {
-	buf := make([]byte, 1024)
-	for {
-		n, err := r.Read(buf[:])
-		if err != nil {
-			return
-		}
-		println("Client got:", string(buf[0:n]))
+func add_service(filename string) {
+	raw, err := ioutil.ReadFile(filename)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
-}
 
-func main() {
-	c, err := net.Dial("unix", "/tmp/container.sock")
+	req, err := http.NewRequest("POST", "http://localhost:3000/api/v1/service/add", bytes.NewBuffer(raw))
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		panic(err)
 	}
-	defer c.Close()
+	defer resp.Body.Close()
 
-	go reader(c)
-	if os.Args[1] == "run" {
-		_, err = c.Write([]byte(strings.Join(os.Args[1:], " ")))
-		if err != nil {
-			log.Fatal("write error:", err)
-		}
-	} else if os.Args[1] == "exec" {
-		q, err := net.Dial("unix", "/tmp/command.sock")
-		if err != nil {
-			panic(err)
-		}
-		defer q.Close()
-		_, err = q.Write([]byte(strings.Join(os.Args[1:], " ")))
-		if err != nil {
-			log.Fatal("write error:", err)
+	if resp.StatusCode != 201 {
+		fmt.Println("Cannot add service")
+		body, _ := ioutil.ReadAll(resp.Body)
+		fmt.Println(string(body))
+	}
+}
+
+func help() {
+}
+
+func main() {
+	switch os.Args[1] {
+	case "service":
+		switch os.Args[2] {
+		case "add":
+			if len(os.Args) != 4 {
+				help()
+				return
+			}
+			add_service(os.Args[3])
 		}
 	}
 }
