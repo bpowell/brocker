@@ -2,28 +2,86 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 	"syscall"
 )
 
+type Service struct {
+	Name       string
+	BridgeName string
+	BridgeIP   net.IP
+	ServicePid int
+}
+
+var services map[string]Service
+
+func init() {
+	services = make(map[string]Service)
+}
+
 func main() {
-	l, err := net.Listen("unix", "/tmp/container.sock")
+	http.HandleFunc("/api/v1/service/add", service_add)
+	err := http.ListenAndServe(":3000", nil)
 	if err != nil {
-		log.Fatal("listen error:", err)
+		fmt.Println(err)
+	}
+}
+
+func service_add(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Invalid Request!", http.StatusMethodNotAllowed)
+		return
 	}
 
-	for {
-		fd, err := l.Accept()
-		if err != nil {
-			log.Fatal("accept error:", err)
-		}
-
-		go echoServer(fd)
+	r.ParseForm()
+	var s Service
+	s.Name = r.PostFormValue("name")
+	if _, ok := services[s.Name]; ok {
+		http.Error(w, "Service already exists", http.StatusInternalServerError)
+		return
 	}
+
+	s.BridgeName = r.PostFormValue("bridge-name")
+	s.BridgeIP = net.ParseIP(r.PostFormValue("bridge-ip"))
+
+	err := service_create_network(s)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+}
+
+func service_create_network(s Service) error {
+	create_bridge := strings.Split(fmt.Sprintf("/sbin/ip link add name %s type bridge", s.BridgeName), " ")
+	set_bridge_up := strings.Split(fmt.Sprintf("/sbin/ip link set %s up", s.BridgeName), " ")
+	set_bridge_ip := strings.Split(fmt.Sprintf("/sbin/ifconfig %s %s", s.BridgeName, s.BridgeIP), " ")
+
+	cmd1 := exec.Command(create_bridge[0], create_bridge[1:]...)
+	err := cmd1.Run()
+	if err != nil {
+		return err
+	}
+
+	cmd2 := exec.Command(set_bridge_up[0], set_bridge_up[1:]...)
+	err = cmd2.Run()
+	if err != nil {
+		return err
+	}
+
+	cmd3 := exec.Command(set_bridge_ip[0], set_bridge_ip[1:]...)
+	err = cmd3.Run()
+	if err != nil {
+		return err
+	}
+
+	services[s.Name] = s
+	return nil
 }
 
 func echoServer(c net.Conn) {
