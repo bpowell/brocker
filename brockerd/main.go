@@ -13,7 +13,7 @@ import (
 
 type Service struct {
 	Name       string `json:"name"`
-	BridgeName string `json:"bridge-name"`
+	BridgeName string
 	BridgeIP   string `json:"bridge-ip"`
 	ServicePid int
 }
@@ -29,6 +29,10 @@ type Container struct {
 
 var services map[string]Service
 var containers []Container
+
+const (
+	bridgeNameBase = "brocker"
+)
 
 func init() {
 	services = make(map[string]Service)
@@ -59,6 +63,8 @@ func service_add(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Service already exists", http.StatusInternalServerError)
 		return
 	}
+
+	s.BridgeName = fmt.Sprintf("%s%d", bridgeNameBase, len(services)+1)
 
 	if err := service_create_network(s); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
