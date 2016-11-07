@@ -95,21 +95,15 @@ func service_create_network(s Service) error {
 	set_bridge_up := strings.Split(fmt.Sprintf("/sbin/ip link set %s up", s.BridgeName), " ")
 	set_bridge_ip := strings.Split(fmt.Sprintf("/sbin/ifconfig %s %s", s.BridgeName, s.BridgeIP), " ")
 
-	cmd1 := exec.Command(create_bridge[0], create_bridge[1:]...)
-	err := cmd1.Run()
-	if err != nil {
+	if err := exec.Command(create_bridge[0], create_bridge[1:]...).Run(); err != nil {
 		return err
 	}
 
-	cmd2 := exec.Command(set_bridge_up[0], set_bridge_up[1:]...)
-	err = cmd2.Run()
-	if err != nil {
+	if err := exec.Command(set_bridge_up[0], set_bridge_up[1:]...).Run(); err != nil {
 		return err
 	}
 
-	cmd3 := exec.Command(set_bridge_ip[0], set_bridge_ip[1:]...)
-	err = cmd3.Run()
-	if err != nil {
+	if err := exec.Command(set_bridge_ip[0], set_bridge_ip[1:]...).Run(); err != nil {
 		return err
 	}
 
