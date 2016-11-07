@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -16,6 +17,7 @@ type Service struct {
 	BridgeName string
 	BridgeIP   string `json:"bridge-ip"`
 	ServicePid int
+	Containers []Container
 }
 
 type Container struct {
@@ -160,9 +162,32 @@ func run(c Container) {
 		return
 	}
 
+	bridgeip := net.ParseIP(s.BridgeIP)
+	lastOctet := bridgeip[15] + byte(len(s.Containers)+1)
+	ip := net.IPv4(bridgeip[12], bridgeip[13], bridgeip[14], lastOctet)
+	c.IP = ip.String()
+
+	if err := execInContainter(fmt.Sprintf("/sbin/ifconfig veth1 %s", ip.String()), c.Pid); err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	c.StartTime = time.Now()
 	containers = append(containers, c)
+
+	s.Containers = append(s.Containers, c)
+	services[c.ServiceName] = s
+
 	fmt.Println(cmd.Process.Pid)
 
 	cmd.Wait()
+}
+
+func execInContainter(cmd string, pid int) error {
+	command := strings.Split(fmt.Sprintf("nsenter --target %d --pid --net %s", pid, cmd), " ")
+	if err := exec.Command(command[0], command[1:]...).Run(); err != nil {
+		return err
+	}
+
+	return nil
 }
