@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -20,6 +22,7 @@ type Service struct {
 	BridgeIP   string `json:"bridge-ip"`
 	NginxConf  string `json:"nginx-config"`
 	Containers []Container
+	NginxUpStream
 }
 
 type Container struct {
@@ -30,6 +33,12 @@ type Container struct {
 	IP          string
 	StartTime   time.Time
 	VEth        string
+}
+
+type NginxUpStream struct {
+	LoadBalanceType string
+	Servers         []string
+	UpStreamConfig  string `json:"nginx-upstream"`
 }
 
 var services map[string]Service
@@ -45,6 +54,27 @@ func (c *Container) setName() {
 	sha := sha1.New()
 	sha.Write([]byte(value))
 	c.Name = hex.EncodeToString(sha.Sum(nil))[:8]
+}
+
+func (n *NginxUpStream) writeConfig() {
+	if _, err := os.Stat(n.UpStreamConfig); os.IsNotExist(err) {
+		fmt.Println("Cannot update config", err)
+		return
+	}
+
+	var buffer bytes.Buffer
+	buffer.WriteString("upstream myapp1 {\n")
+	buffer.WriteString(n.LoadBalanceType)
+	buffer.WriteString(";\n")
+	for _, s := range n.Servers {
+		buffer.WriteString(fmt.Sprintf("server %s:8080;\n", s))
+	}
+	buffer.WriteString("\n}")
+
+	if err := ioutil.WriteFile(n.UpStreamConfig, buffer.Bytes(), 0644); err != nil {
+		fmt.Println(err)
+		return
+	}
 }
 
 func init() {
@@ -102,6 +132,8 @@ func service_add(w http.ResponseWriter, r *http.Request) {
 		ServiceName: s.Name,
 		Command:     fmt.Sprintf("%s -c %s", path, s.NginxConf),
 	}
+
+	s.LoadBalanceType = "least_conn"
 	go run(c)
 
 	w.WriteHeader(http.StatusCreated)
