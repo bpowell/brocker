@@ -16,7 +16,7 @@ type Service struct {
 	Name       string `json:"name"`
 	BridgeName string
 	BridgeIP   string `json:"bridge-ip"`
-	ServicePid int
+	NginxConf  string `json:"nginx-config"`
 	Containers []Container
 }
 
@@ -68,12 +68,30 @@ func service_add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := os.Stat(s.NginxConf); os.IsNotExist(err) {
+		http.Error(w, fmt.Sprintf("Cannot open %s\n%s", s.NginxConf, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
 	s.BridgeName = fmt.Sprintf("%s%d", bridgeNameBase, len(services)+1)
 
 	if err := service_create_network(s); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	path, err := exec.LookPath("nginx")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	c := Container{
+		Name:        fmt.Sprintf("%s-nginx", s.Name),
+		ServiceName: s.Name,
+		Command:     fmt.Sprintf("%s -c %s", path, s.NginxConf),
+	}
+	go run(c)
 
 	w.WriteHeader(http.StatusCreated)
 }
