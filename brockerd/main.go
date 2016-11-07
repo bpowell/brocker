@@ -54,6 +54,7 @@ func init() {
 func main() {
 	http.HandleFunc("/api/v1/service/add", service_add)
 	http.HandleFunc("/api/v1/container/run", container_run)
+	http.HandleFunc("/api/v1/container/list", container_list)
 	err := http.ListenAndServe(":3000", nil)
 	if err != nil {
 		fmt.Println(err)
@@ -125,6 +126,13 @@ func container_run(w http.ResponseWriter, r *http.Request) {
 	go run(c)
 
 	w.WriteHeader(http.StatusCreated)
+}
+
+func container_list(w http.ResponseWriter, r *http.Request) {
+	if err := json.NewEncoder(w).Encode(containers); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func service_create_network(s Service) error {

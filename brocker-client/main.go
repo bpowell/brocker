@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	ADD_SERVICE   = "http://localhost:3000/api/v1/service/add"
-	RUN_CONTAINER = "http://localhost:3000/api/v1/container/run"
+	ADD_SERVICE    = "http://localhost:3000/api/v1/service/add"
+	RUN_CONTAINER  = "http://localhost:3000/api/v1/container/run"
+	LIST_CONTAINER = "http://localhost:3000/api/v1/container/list"
 )
 
 func call(url string) {
@@ -42,6 +43,23 @@ func call(url string) {
 	}
 }
 
+func list_containers() {
+	resp, err := http.Get(LIST_CONTAINER)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println(string(body))
+}
+
 func help() {
 }
 
@@ -56,6 +74,8 @@ func main() {
 		switch os.Args[2] {
 		case "run":
 			call(RUN_CONTAINER)
+		case "list":
+			list_containers()
 		}
 	}
 }
