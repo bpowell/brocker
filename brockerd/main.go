@@ -121,6 +121,7 @@ func service_create_network(s Service) error {
 
 func run(c Container) {
 	fmt.Println("running parent")
+	s := services[c.ServiceName]
 	runcmd := "/home/yup/p/containers/brocker-run/brocker-run"
 
 	cmd := &exec.Cmd{
@@ -153,7 +154,7 @@ func run(c Container) {
 		return
 	}
 
-	bridge := strings.Split(fmt.Sprintf("/sbin/ip link set %s master %s", c.VEth, services[c.ServiceName].BridgeName), " ")
+	bridge := strings.Split(fmt.Sprintf("/sbin/ip link set %s master %s", c.VEth, s.BridgeName), " ")
 	if err := exec.Command(bridge[0], bridge[1:]...).Run(); err != nil {
 		fmt.Println(err)
 		return
