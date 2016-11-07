@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -21,7 +23,7 @@ type Service struct {
 }
 
 type Container struct {
-	Name        string `json:"name"`
+	Name        string
 	ServiceName string `json:"service-name"`
 	Command     string `json:"command"`
 	Pid         int
@@ -37,6 +39,13 @@ const (
 	bridgeNameBase = "brocker"
 	vethNameBase   = "veth"
 )
+
+func (c *Container) setName() {
+	value := fmt.Sprintf("%s%s%s", c.Name, c.StartTime, c.Command)
+	sha := sha1.New()
+	sha.Write([]byte(value))
+	c.Name = hex.EncodeToString(sha.Sum(nil))
+}
 
 func init() {
 	services = make(map[string]Service)
@@ -191,6 +200,7 @@ func run(c Container) {
 	}
 
 	c.StartTime = time.Now()
+	c.setName()
 	containers = append(containers, c)
 
 	s.Containers = append(s.Containers, c)
