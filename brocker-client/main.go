@@ -13,7 +13,14 @@ const (
 	RUN_CONTAINER = "http://localhost:3000/api/v1/container/run"
 )
 
-func call(url, filename string) {
+func call(url string) {
+	if len(os.Args) != 4 {
+		help()
+		return
+	}
+
+	filename := os.Args[3]
+
 	raw, err := ioutil.ReadFile(filename)
 	if err != nil {
 		fmt.Println(err)
@@ -39,21 +46,16 @@ func help() {
 }
 
 func main() {
-	if len(os.Args) != 4 {
-		help()
-		return
-	}
-
 	switch os.Args[1] {
 	case "service":
 		switch os.Args[2] {
 		case "add":
-			call(ADD_SERVICE, os.Args[3])
+			call(ADD_SERVICE)
 		}
 	case "container":
 		switch os.Args[2] {
 		case "run":
-			call(RUN_CONTAINER, os.Args[3])
+			call(RUN_CONTAINER)
 		}
 	}
 }
