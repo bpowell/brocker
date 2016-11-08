@@ -21,6 +21,7 @@ type Service struct {
 	BridgeName string
 	BridgeIP   string `json:"bridge-ip"`
 	NginxConf  string `json:"nginx-config"`
+	Pid        int
 	Containers []Container
 	NginxUpStream
 }
@@ -56,6 +57,13 @@ func (c *Container) setName() {
 	c.Name = hex.EncodeToString(sha.Sum(nil))[:8]
 }
 
+func (s *Service) reload() {
+	if err := execInContainter(fmt.Sprintf("/usr/sbin/nginx -s reload -c %s", s.NginxConf), s.Pid); err != nil {
+		fmt.Println("Cannot reload nginx: ", err)
+		return
+	}
+}
+
 func (n *NginxUpStream) writeConfig() {
 	if _, err := os.Stat(n.UpStreamConfig); os.IsNotExist(err) {
 		fmt.Println("Cannot update config", err)
@@ -67,7 +75,7 @@ func (n *NginxUpStream) writeConfig() {
 	buffer.WriteString(n.LoadBalanceType)
 	buffer.WriteString(";\n")
 	for _, s := range n.Servers {
-		buffer.WriteString(fmt.Sprintf("server %s:8080;\n", s))
+		buffer.WriteString(fmt.Sprintf("server %s;\n", s))
 	}
 	buffer.WriteString("\n}")
 
@@ -116,6 +124,7 @@ func service_add(w http.ResponseWriter, r *http.Request) {
 
 	s.BridgeName = fmt.Sprintf("%s%d", bridgeNameBase, len(services)+1)
 
+	s.LoadBalanceType = "least_conn"
 	if err := service_create_network(s); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -133,8 +142,7 @@ func service_add(w http.ResponseWriter, r *http.Request) {
 		Command:     fmt.Sprintf("%s -c %s", path, s.NginxConf),
 	}
 
-	s.LoadBalanceType = "least_conn"
-	go run(c)
+	go run(c, true)
 
 	w.WriteHeader(http.StatusCreated)
 }
@@ -156,7 +164,7 @@ func container_run(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go run(c)
+	go run(c, false)
 
 	w.WriteHeader(http.StatusCreated)
 }
@@ -211,7 +219,7 @@ func service_create_network(s Service) error {
 	return nil
 }
 
-func run(c Container) {
+func run(c Container, isNginx bool) {
 	fmt.Println("running parent")
 	s := services[c.ServiceName]
 	runcmd := "/home/yup/p/containers/brocker-run/brocker-run"
@@ -267,6 +275,13 @@ func run(c Container) {
 	containers = append(containers, c)
 
 	s.Containers = append(s.Containers, c)
+	if isNginx {
+		s.Pid = c.Pid
+	} else {
+		s.Servers = append(s.Servers, fmt.Sprintf("%s:8080", c.IP))
+		s.writeConfig()
+		s.reload()
+	}
 	services[c.ServiceName] = s
 
 	fmt.Println(cmd.Process.Pid)
