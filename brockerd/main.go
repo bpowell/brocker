@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
 	"syscall"
 	"time"
@@ -59,6 +60,15 @@ func (c *Container) setName() {
 	c.Name = hex.EncodeToString(sha.Sum(nil))[:8]
 }
 
+func (c *Container) Close() {
+	if err := execInContainter("/bin/umount /app", c.Pid); err != nil {
+		fmt.Println("Cannot unmount /app: ", err)
+	}
+
+	p, _ := os.FindProcess(c.Pid)
+	p.Kill()
+}
+
 func (s *Service) reload() {
 	if err := execInContainter(fmt.Sprintf("/usr/sbin/nginx -s reload -c %s", s.NginxConf), s.Pid); err != nil {
 		fmt.Println("Cannot reload nginx: ", err)
@@ -92,6 +102,17 @@ func init() {
 }
 
 func main() {
+	ctrl_c := make(chan os.Signal, 1)
+	signal.Notify(ctrl_c, os.Interrupt)
+	go func() {
+		for _ = range ctrl_c {
+			for _, c := range containers {
+				c.Close()
+			}
+			os.Exit(0)
+		}
+	}()
+
 	http.HandleFunc("/api/v1/service/add", service_add)
 	http.HandleFunc("/api/v1/container/run", container_run)
 	http.HandleFunc("/api/v1/container/list", container_list)
