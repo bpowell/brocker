@@ -15,4 +15,8 @@ func main() {
 	args := strings.Split(os.Args[1], " ")
 	args = append(args, os.Args[2:]...)
 	fmt.Println(syscall.Exec(args[0], args, os.Environ()))
+
+	if err := syscall.Unmount("/app", 0); err != nil {
+		fmt.Println("Cannot unmount /app", err)
+	}
 }
