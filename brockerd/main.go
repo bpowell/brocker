@@ -233,6 +233,7 @@ func run(c Container, isNginx bool) {
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWPID |
+			syscall.CLONE_NEWNS |
 			syscall.CLONE_NEWNET,
 	}
 
@@ -290,7 +291,7 @@ func run(c Container, isNginx bool) {
 }
 
 func execInContainter(cmd string, pid int) error {
-	command := strings.Split(fmt.Sprintf("nsenter --target %d --pid --net %s", pid, cmd), " ")
+	command := strings.Split(fmt.Sprintf("nsenter --target %d --pid --net --mount %s", pid, cmd), " ")
 	if err := exec.Command(command[0], command[1:]...).Run(); err != nil {
 		return err
 	}
