@@ -94,7 +94,7 @@ func exec_container() {
 		return
 	}
 
-	command := strings.Split(fmt.Sprintf("%s --target %s --pid --net %s", path, pid, cmd), " ")
+	command := strings.Split(fmt.Sprintf("%s --target %s --pid --net --mount %s", path, pid, cmd), " ")
 	run := &exec.Cmd{
 		Path: command[0],
 		Args: command,
