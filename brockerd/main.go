@@ -48,6 +48,8 @@ var containers []Container
 const (
 	bridgeNameBase = "brocker"
 	vethNameBase   = "veth"
+	MOUNT_LOC      = "/app"
+	CONTAIN_DIR    = "/container"
 )
 
 func (c *Container) setName() {
@@ -267,6 +269,25 @@ func run(c Container, isNginx bool) {
 	c.IP = ip.String()
 
 	if err := execInContainter(fmt.Sprintf("/sbin/ifconfig veth1 %s", ip.String()), c.Pid); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	/*
+		Allows the use of CLONE_NEWNS on ubuntu boxes. util-linux <= 2.27 have issues
+		with systemd making / shared across all namespaces
+	*/
+	if err := execInContainter("/bin/mount --make-private -o remount /", c.Pid); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if err := os.Mkdir(fmt.Sprintf("%s/%s", CONTAIN_DIR, c.Name), 0644); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if err := execInContainter(fmt.Sprintf("/bin/mount --bind %s/%s %s", CONTAIN_DIR, c.Name, MOUNT_LOC), c.Pid); err != nil {
 		fmt.Println(err)
 		return
 	}
