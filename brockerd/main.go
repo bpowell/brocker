@@ -283,6 +283,9 @@ func run(c Container, isNginx bool) {
 		fmt.Println(err)
 	}
 
+	c.StartTime = time.Now()
+	c.setName()
+
 	c.Pid = cmd.Process.Pid
 	c.VEth = fmt.Sprintf("%s%d", vethNameBase, len(containers))
 	link := strings.Split(fmt.Sprintf("/sbin/ip link add name %s type veth peer name veth1 netns %d", c.VEth, c.Pid), " ")
@@ -332,8 +335,6 @@ func run(c Container, isNginx bool) {
 		return
 	}
 
-	c.StartTime = time.Now()
-	c.setName()
 	containers[c.Name] = c
 	s.Containers[c.Name] = c
 
