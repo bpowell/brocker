@@ -23,7 +23,7 @@ type Service struct {
 	BridgeIP   string `json:"bridge-ip"`
 	NginxConf  string `json:"nginx-config"`
 	Pid        int
-	Containers []Container
+	Containers map[string]Container
 	NginxUpStream
 }
 
@@ -44,7 +44,7 @@ type NginxUpStream struct {
 }
 
 var services map[string]Service
-var containers []Container
+var containers map[string]Container
 
 const (
 	bridgeNameBase = "brocker"
@@ -99,6 +99,7 @@ func (n *NginxUpStream) writeConfig() {
 
 func init() {
 	services = make(map[string]Service)
+	containers = make(map[string]Container)
 }
 
 func main() {
@@ -129,7 +130,10 @@ func service_add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var s Service
+	s := Service{
+		Containers: make(map[string]Container),
+	}
+
 	if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -315,9 +319,9 @@ func run(c Container, isNginx bool) {
 
 	c.StartTime = time.Now()
 	c.setName()
-	containers = append(containers, c)
+	containers[c.Name] = c
+	s.Containers[c.Name] = c
 
-	s.Containers = append(s.Containers, c)
 	if isNginx {
 		s.Pid = c.Pid
 	} else {
@@ -330,6 +334,9 @@ func run(c Container, isNginx bool) {
 	fmt.Println(cmd.Process.Pid)
 
 	cmd.Wait()
+
+	delete(containers, c.Name)
+	delete(services[c.ServiceName].Containers, c.Name)
 }
 
 func execInContainter(cmd string, pid int) error {
