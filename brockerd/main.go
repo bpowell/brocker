@@ -76,6 +76,21 @@ func (s *Service) reload() {
 	}
 }
 
+func (s *Service) Stop() {
+	if err := execInContainter(fmt.Sprintf("/usr/sbin/nginx -s stop -c %s", s.NginxConf), s.Pid); err != nil {
+		fmt.Println(err)
+	}
+
+	for _, c := range s.Containers {
+		c.Close()
+	}
+
+	delete_bridge := strings.Split(fmt.Sprintf("ip link delete %s type bridge", s.BridgeName), " ")
+	if err := exec.Command(delete_bridge[0], delete_bridge[1:]...).Run(); err != nil {
+		fmt.Printf("Cannot delete bridge %s", s.BridgeName)
+	}
+}
+
 func (n *NginxUpStream) writeConfig() {
 	if _, err := os.Stat(n.UpStreamConfig); os.IsNotExist(err) {
 		fmt.Println("Cannot update config", err)
@@ -107,8 +122,8 @@ func main() {
 	signal.Notify(ctrl_c, os.Interrupt)
 	go func() {
 		for _ = range ctrl_c {
-			for _, c := range containers {
-				c.Close()
+			for _, s := range services {
+				s.Stop()
 			}
 			os.Exit(0)
 		}
