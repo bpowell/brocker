@@ -54,7 +54,7 @@ const (
 )
 
 func (c *Container) setName() {
-	value := fmt.Sprintf("%s%s%s", c.Name, c.StartTime, c.Command)
+	value := fmt.Sprintf("%s%s", c.StartTime, c.Command)
 	sha := sha1.New()
 	sha.Write([]byte(value))
 	c.Name = hex.EncodeToString(sha.Sum(nil))[:8]
