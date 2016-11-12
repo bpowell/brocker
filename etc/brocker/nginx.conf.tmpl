@@ -1,0 +1,35 @@
+user www-data;
+worker_processes auto;
+pid /run/{{.Name}}nginx.pid;
+
+daemon off;
+
+events {
+	worker_connections 768;
+}
+
+http {
+
+	include /etc/nginx/mime.types;
+	default_type application/octet-stream;
+
+	access_log /app/access.log;
+	error_log /app/error.log;
+
+	gzip on;
+	gzip_disable "msie6";
+
+
+	include /etc/nginx/conf.d/*.conf;
+
+    include myapp.conf;
+
+    server {
+        location / {
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_next_upstream error timeout http_500 http_503;
+                proxy_pass http://myapp1;
+        }
+    }
+}

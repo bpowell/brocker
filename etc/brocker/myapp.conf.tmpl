@@ -1,0 +1,6 @@
+upstream myapp1 {
+    least_conn;
+    {{ range .Servers }}
+        {{ . }};
+    {{ end}}
+}
