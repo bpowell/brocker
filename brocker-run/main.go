@@ -4,11 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"syscall"
 )
-
-var wg sync.WaitGroup
 
 func main() {
 	fmt.Println("running child")
