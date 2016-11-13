@@ -1,6 +1,10 @@
 upstream myapp1 {
     least_conn;
-    {{ range .Servers }}
-        {{ . }};
-    {{ end}}
+    {{ if eq (len .Servers) 0 }}
+        localhost:8080;
+    {{ else }}
+        {{ range .Servers }}
+            {{ . }};
+        {{ end}}
+    {{ end }}
 }
