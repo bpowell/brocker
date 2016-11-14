@@ -277,7 +277,11 @@ func service_create_network(s Service) error {
 func run(c Container, isNginx bool) {
 	fmt.Println("running parent")
 	s := services[c.ServiceName]
-	runcmd := "/home/yup/p/containers/brocker-run/brocker-run"
+	runcmd, err := exec.LookPath("brocker-run")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	c.StartTime = time.Now()
 	c.setName()
