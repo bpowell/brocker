@@ -134,6 +134,20 @@ func rm_container() {
 }
 
 func help() {
+	fmt.Println("Commands:")
+	fmt.Println("\tcontainer")
+	fmt.Println("\tservice")
+	fmt.Println()
+
+	fmt.Println("container:")
+	fmt.Println("\trun filename.json - Runs command specified in filename.json")
+	fmt.Println("\texec container_hash command... - Runs specified command in container")
+	fmt.Println("\tlist - Lists all running containers")
+	fmt.Println("\trm container_hash - Stops container")
+	fmt.Println()
+
+	fmt.Println("service:")
+	fmt.Println("\tadd filename.json - Creates a service with details from filename.json")
 }
 
 func main() {
