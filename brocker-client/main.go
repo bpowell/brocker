@@ -15,6 +15,7 @@ const (
 	RUN_CONTAINER  = "http://localhost:3000/api/v1/container/run"
 	LIST_CONTAINER = "http://localhost:3000/api/v1/container/list"
 	EXEC_CONTAINER = "http://localhost:3000/api/v1/container/exec"
+	RM_CONTAINER   = "http://localhost:3000/api/v1/container/rm"
 )
 
 func call(url string) {
@@ -107,6 +108,31 @@ func exec_container() {
 	run.Wait()
 }
 
+func rm_container() {
+	if len(os.Args) != 4 {
+		help()
+		return
+	}
+
+	raw := []byte(fmt.Sprintf("{\"name\":\"%s\"}", os.Args[3]))
+	fmt.Println(string(raw))
+	req, err := http.NewRequest("POST", RM_CONTAINER, bytes.NewBuffer(raw))
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(string(body))
+}
+
 func help() {
 }
 
@@ -125,6 +151,8 @@ func main() {
 			list_containers()
 		case "exec":
 			exec_container()
+		case "rm":
+			rm_container()
 		}
 	}
 }

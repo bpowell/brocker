@@ -126,6 +126,7 @@ func main() {
 	http.HandleFunc("/api/v1/container/run", container_run)
 	http.HandleFunc("/api/v1/container/list", container_list)
 	http.HandleFunc("/api/v1/container/exec", container_exec)
+	http.HandleFunc("/api/v1/container/rm", container_rm)
 	err := http.ListenAndServe(":3000", nil)
 	if err != nil {
 		fmt.Println(err)
@@ -226,6 +227,30 @@ func container_exec(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+func container_rm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Invalid Request!", http.StatusMethodNotAllowed)
+		return
+	}
+
+	data := struct {
+		Name string `json:"name"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	c, ok := containers[data.Name]
+	if !ok {
+		http.Error(w, "Not a running container", http.StatusInternalServerError)
+		return
+	}
+	c.Close()
+
+	w.Write([]byte("Stopping container"))
 }
 
 func service_create_network(s Service) error {
