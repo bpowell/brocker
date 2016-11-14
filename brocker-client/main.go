@@ -151,11 +151,18 @@ func help() {
 }
 
 func main() {
+	if len(os.Args) < 3 {
+		help()
+		return
+	}
+
 	switch os.Args[1] {
 	case "service":
 		switch os.Args[2] {
 		case "add":
 			call(ADD_SERVICE)
+		default:
+			help()
 		}
 	case "container":
 		switch os.Args[2] {
@@ -167,6 +174,10 @@ func main() {
 			exec_container()
 		case "rm":
 			rm_container()
+		default:
+			help()
 		}
+	default:
+		help()
 	}
 }
