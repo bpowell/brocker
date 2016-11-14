@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -14,16 +12,17 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"text/template"
 	"time"
 )
 
 type Service struct {
-	Name       string `json:"name"`
-	BridgeName string
-	BridgeIP   string `json:"bridge-ip"`
-	NginxConf  string `json:"nginx-config"`
-	Pid        int
-	Containers map[string]Container
+	ContainterName string
+	Name           string `json:"name"`
+	BridgeName     string
+	BridgeIP       string `json:"bridge-ip"`
+	Pid            int
+	Containers     map[string]Container
 	NginxUpStream
 }
 
@@ -40,11 +39,11 @@ type Container struct {
 type NginxUpStream struct {
 	LoadBalanceType string
 	Servers         []string
-	UpStreamConfig  string `json:"nginx-upstream"`
 }
 
 var services map[string]Service
 var containers map[string]Container
+var nginx_config *template.Template
 
 const (
 	bridgeNameBase = "brocker"
@@ -70,14 +69,14 @@ func (c *Container) Close() {
 }
 
 func (s *Service) reload() {
-	if err := execInContainter(fmt.Sprintf("/usr/sbin/nginx -s reload -c %s", s.NginxConf), s.Pid); err != nil {
+	if err := execInContainter("/usr/sbin/nginx -s reload -c /app/nginx.conf", s.Pid); err != nil {
 		fmt.Println("Cannot reload nginx: ", err)
 		return
 	}
 }
 
 func (s *Service) Stop() {
-	if err := execInContainter(fmt.Sprintf("/usr/sbin/nginx -s stop -c %s", s.NginxConf), s.Pid); err != nil {
+	if err := execInContainter("/usr/sbin/nginx -s stop -c /app/nginx.conf", s.Pid); err != nil {
 		fmt.Println(err)
 	}
 
@@ -91,22 +90,15 @@ func (s *Service) Stop() {
 	}
 }
 
-func (n *NginxUpStream) writeConfig() {
-	if _, err := os.Stat(n.UpStreamConfig); os.IsNotExist(err) {
-		fmt.Println("Cannot update config", err)
+func (s *Service) writeConfig() {
+	myappconffile, err := os.OpenFile(fmt.Sprintf("%s/%s/myapp.conf", CONTAIN_DIR, s.ContainterName), os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
+	defer myappconffile.Close()
 
-	var buffer bytes.Buffer
-	buffer.WriteString("upstream myapp1 {\n")
-	buffer.WriteString(n.LoadBalanceType)
-	buffer.WriteString(";\n")
-	for _, s := range n.Servers {
-		buffer.WriteString(fmt.Sprintf("server %s;\n", s))
-	}
-	buffer.WriteString("\n}")
-
-	if err := ioutil.WriteFile(n.UpStreamConfig, buffer.Bytes(), 0644); err != nil {
+	if err := nginx_config.ExecuteTemplate(myappconffile, "myapp.conf.tmpl", s); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -115,6 +107,7 @@ func (n *NginxUpStream) writeConfig() {
 func init() {
 	services = make(map[string]Service)
 	containers = make(map[string]Container)
+	nginx_config = template.Must(template.ParseFiles("/etc/brocker/nginx.conf.tmpl", "/etc/brocker/myapp.conf.tmpl"))
 }
 
 func main() {
@@ -159,11 +152,6 @@ func service_add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := os.Stat(s.NginxConf); os.IsNotExist(err) {
-		http.Error(w, fmt.Sprintf("Cannot open %s\n%s", s.NginxConf, err.Error()), http.StatusInternalServerError)
-		return
-	}
-
 	s.BridgeName = fmt.Sprintf("%s%d", bridgeNameBase, len(services)+1)
 
 	s.LoadBalanceType = "least_conn"
@@ -181,7 +169,7 @@ func service_add(w http.ResponseWriter, r *http.Request) {
 	c := Container{
 		Name:        fmt.Sprintf("%s-nginx", s.Name),
 		ServiceName: s.Name,
-		Command:     fmt.Sprintf("%s -c %s", path, s.NginxConf),
+		Command:     fmt.Sprintf("%s -c %s", path, "/app/nginx.conf"),
 	}
 
 	go run(c, true)
@@ -266,9 +254,49 @@ func run(c Container, isNginx bool) {
 	s := services[c.ServiceName]
 	runcmd := "/home/yup/p/containers/brocker-run/brocker-run"
 
+	c.StartTime = time.Now()
+	c.setName()
+
+	if err := os.Mkdir(fmt.Sprintf("%s/%s", CONTAIN_DIR, c.Name), 0644); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if isNginx {
+		nginxconffile, err := os.Create(fmt.Sprintf("%s/%s/nginx.conf", CONTAIN_DIR, c.Name))
+		if err != nil {
+			fmt.Println(err)
+			nginxconffile.Close()
+			return
+		}
+
+		if err := nginx_config.ExecuteTemplate(nginxconffile, "nginx.conf.tmpl", s); err != nil {
+			fmt.Println(err)
+			nginxconffile.Close()
+			return
+		}
+		nginxconffile.Close()
+
+		myappconffile, err := os.Create(fmt.Sprintf("%s/%s/myapp.conf", CONTAIN_DIR, c.Name))
+		if err != nil {
+			fmt.Println(err)
+			myappconffile.Close()
+			return
+		}
+
+		if err := nginx_config.ExecuteTemplate(myappconffile, "myapp.conf.tmpl", s); err != nil {
+			fmt.Println(err)
+			myappconffile.Close()
+			return
+		}
+		myappconffile.Close()
+	}
+
+	args := strings.Split(fmt.Sprintf("%s %s %s", runcmd, c.Name, c.Command), " ")
+
 	cmd := &exec.Cmd{
 		Path: runcmd,
-		Args: append([]string{runcmd}, c.Command),
+		Args: args,
 	}
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -282,9 +310,6 @@ func run(c Container, isNginx bool) {
 	if err := cmd.Start(); err != nil {
 		fmt.Println(err)
 	}
-
-	c.StartTime = time.Now()
-	c.setName()
 
 	c.Pid = cmd.Process.Pid
 	c.VEth = fmt.Sprintf("%s%d", vethNameBase, len(containers))
@@ -316,30 +341,12 @@ func run(c Container, isNginx bool) {
 		return
 	}
 
-	/*
-		Allows the use of CLONE_NEWNS on ubuntu boxes. util-linux <= 2.27 have issues
-		with systemd making / shared across all namespaces
-	*/
-	if err := execInContainter("/bin/mount --make-private -o remount /", c.Pid); err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	if err := os.Mkdir(fmt.Sprintf("%s/%s", CONTAIN_DIR, c.Name), 0644); err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	if err := execInContainter(fmt.Sprintf("/bin/mount --bind %s/%s %s", CONTAIN_DIR, c.Name, MOUNT_LOC), c.Pid); err != nil {
-		fmt.Println(err)
-		return
-	}
-
 	containers[c.Name] = c
 	s.Containers[c.Name] = c
 
 	if isNginx {
 		s.Pid = c.Pid
+		s.ContainterName = c.Name
 	} else {
 		s.Servers = append(s.Servers, fmt.Sprintf("%s:8080", c.IP))
 		s.writeConfig()
