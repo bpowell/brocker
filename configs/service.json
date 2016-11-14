@@ -1,5 +1,4 @@
 {
         "name":"mydetails",
-        "bridge-ip":"10.0.1.1",
-        "nginx-config":"/home/yup/p/containers/nginx.conf"
+        "bridge-ip":"10.0.1.1"
 }

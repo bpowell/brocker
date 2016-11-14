@@ -1,5 +1,4 @@
 {
-        "name":"mydetails",
         "service-name":"mydetails",
         "command":"/usr/bin/java -Dcatalina.home=/home/yup/demo/build -Dserver.port=8080 -jar /home/yup/demo/build/libs/demo-0.0.1-SNAPSHOT.war"
 }
