@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path"
 	"strings"
 	"syscall"
 	"text/template"
@@ -30,6 +31,8 @@ type Container struct {
 	Name        string
 	ServiceName string `json:"service-name"`
 	Command     string `json:"command"`
+	CopyFile    bool   `json:"copy-file"`
+	FileToCopy  string `json:"file"`
 	Pid         int
 	IP          string
 	StartTime   time.Time
@@ -289,6 +292,13 @@ func run(c Container, isNginx bool) {
 	if err := os.Mkdir(fmt.Sprintf("%s/%s", CONTAIN_DIR, c.Name), 0644); err != nil {
 		fmt.Println(err)
 		return
+	}
+
+	if c.CopyFile {
+		if err := exec.Command("cp", c.FileToCopy, fmt.Sprintf("%s/%s/%s", CONTAIN_DIR, c.Name, path.Base(c.FileToCopy))).Run(); err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 
 	if isNginx {
