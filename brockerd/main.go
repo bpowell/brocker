@@ -117,7 +117,7 @@ func main() {
 	ctrl_c := make(chan os.Signal, 1)
 	signal.Notify(ctrl_c, os.Interrupt)
 	go func() {
-		for _ = range ctrl_c {
+		for range ctrl_c {
 			for _, s := range services {
 				s.Stop()
 			}
