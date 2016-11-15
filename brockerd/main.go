@@ -46,7 +46,7 @@ type NginxUpStream struct {
 
 var services map[string]Service
 var containers map[string]Container
-var nginx_config *template.Template
+var nginxConfig *template.Template
 
 const (
 	bridgeNameBase = "brocker"
@@ -87,8 +87,8 @@ func (s *Service) Stop() {
 		c.Close()
 	}
 
-	delete_bridge := strings.Split(fmt.Sprintf("ip link delete %s type bridge", s.BridgeName), " ")
-	if err := exec.Command(delete_bridge[0], delete_bridge[1:]...).Run(); err != nil {
+	deleteBridge := strings.Split(fmt.Sprintf("ip link delete %s type bridge", s.BridgeName), " ")
+	if err := exec.Command(deleteBridge[0], deleteBridge[1:]...).Run(); err != nil {
 		fmt.Printf("Cannot delete bridge %s", s.BridgeName)
 	}
 }
@@ -101,7 +101,7 @@ func (s *Service) writeConfig() {
 	}
 	defer myappconffile.Close()
 
-	if err := nginx_config.ExecuteTemplate(myappconffile, "myapp.conf.tmpl", s); err != nil {
+	if err := nginxConfig.ExecuteTemplate(myappconffile, "myapp.conf.tmpl", s); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -110,14 +110,14 @@ func (s *Service) writeConfig() {
 func init() {
 	services = make(map[string]Service)
 	containers = make(map[string]Container)
-	nginx_config = template.Must(template.ParseFiles("/etc/brocker/nginx.conf.tmpl", "/etc/brocker/myapp.conf.tmpl"))
+	nginxConfig = template.Must(template.ParseFiles("/etc/brocker/nginx.conf.tmpl", "/etc/brocker/myapp.conf.tmpl"))
 }
 
 func main() {
-	ctrl_c := make(chan os.Signal, 1)
-	signal.Notify(ctrl_c, os.Interrupt)
+	ctrlC := make(chan os.Signal, 1)
+	signal.Notify(ctrlC, os.Interrupt)
 	go func() {
-		for range ctrl_c {
+		for range ctrlC {
 			for _, s := range services {
 				s.Stop()
 			}
@@ -125,18 +125,18 @@ func main() {
 		}
 	}()
 
-	http.HandleFunc("/api/v1/service/add", service_add)
-	http.HandleFunc("/api/v1/container/run", container_run)
-	http.HandleFunc("/api/v1/container/list", container_list)
-	http.HandleFunc("/api/v1/container/exec", container_exec)
-	http.HandleFunc("/api/v1/container/rm", container_rm)
+	http.HandleFunc("/api/v1/service/add", serviceAdd)
+	http.HandleFunc("/api/v1/container/run", containerRun)
+	http.HandleFunc("/api/v1/container/list", containerList)
+	http.HandleFunc("/api/v1/container/exec", containerExec)
+	http.HandleFunc("/api/v1/container/rm", containerRm)
 	err := http.ListenAndServe(":3000", nil)
 	if err != nil {
 		fmt.Println(err)
 	}
 }
 
-func service_add(w http.ResponseWriter, r *http.Request) {
+func serviceAdd(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Invalid Request!", http.StatusMethodNotAllowed)
 		return
@@ -159,7 +159,7 @@ func service_add(w http.ResponseWriter, r *http.Request) {
 	s.BridgeName = fmt.Sprintf("%s%d", bridgeNameBase, len(services)+1)
 
 	s.LoadBalanceType = "least_conn"
-	if err := service_create_network(s); err != nil {
+	if err := serviceCreateNetwork(s); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -181,7 +181,7 @@ func service_add(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func container_run(w http.ResponseWriter, r *http.Request) {
+func containerRun(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Invalid Request!", http.StatusMethodNotAllowed)
 		return
@@ -203,14 +203,14 @@ func container_run(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func container_list(w http.ResponseWriter, r *http.Request) {
+func containerList(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(containers); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
 
-func container_exec(w http.ResponseWriter, r *http.Request) {
+func containerExec(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Invalid Request!", http.StatusMethodNotAllowed)
 		return
@@ -232,7 +232,7 @@ func container_exec(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func container_rm(w http.ResponseWriter, r *http.Request) {
+func containerRm(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Invalid Request!", http.StatusMethodNotAllowed)
 		return
@@ -256,20 +256,20 @@ func container_rm(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Stopping container"))
 }
 
-func service_create_network(s Service) error {
-	create_bridge := strings.Split(fmt.Sprintf("/sbin/ip link add name %s type bridge", s.BridgeName), " ")
-	set_bridge_up := strings.Split(fmt.Sprintf("/sbin/ip link set %s up", s.BridgeName), " ")
-	set_bridge_ip := strings.Split(fmt.Sprintf("/sbin/ifconfig %s %s", s.BridgeName, s.BridgeIP), " ")
+func serviceCreateNetwork(s Service) error {
+	createBridge := strings.Split(fmt.Sprintf("/sbin/ip link add name %s type bridge", s.BridgeName), " ")
+	setBridgeUp := strings.Split(fmt.Sprintf("/sbin/ip link set %s up", s.BridgeName), " ")
+	setBridgeIP := strings.Split(fmt.Sprintf("/sbin/ifconfig %s %s", s.BridgeName, s.BridgeIP), " ")
 
-	if err := exec.Command(create_bridge[0], create_bridge[1:]...).Run(); err != nil {
+	if err := exec.Command(createBridge[0], createBridge[1:]...).Run(); err != nil {
 		return err
 	}
 
-	if err := exec.Command(set_bridge_up[0], set_bridge_up[1:]...).Run(); err != nil {
+	if err := exec.Command(setBridgeUp[0], setBridgeUp[1:]...).Run(); err != nil {
 		return err
 	}
 
-	if err := exec.Command(set_bridge_ip[0], set_bridge_ip[1:]...).Run(); err != nil {
+	if err := exec.Command(setBridgeIP[0], setBridgeIP[1:]...).Run(); err != nil {
 		return err
 	}
 
@@ -309,7 +309,7 @@ func run(c Container, isNginx bool) {
 			return
 		}
 
-		if err := nginx_config.ExecuteTemplate(nginxconffile, "nginx.conf.tmpl", s); err != nil {
+		if err := nginxConfig.ExecuteTemplate(nginxconffile, "nginx.conf.tmpl", s); err != nil {
 			fmt.Println(err)
 			nginxconffile.Close()
 			return
@@ -323,7 +323,7 @@ func run(c Container, isNginx bool) {
 			return
 		}
 
-		if err := nginx_config.ExecuteTemplate(myappconffile, "myapp.conf.tmpl", s); err != nil {
+		if err := nginxConfig.ExecuteTemplate(myappconffile, "myapp.conf.tmpl", s); err != nil {
 			fmt.Println(err)
 			myappconffile.Close()
 			return
