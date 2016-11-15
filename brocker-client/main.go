@@ -47,7 +47,7 @@ func call(url string) {
 	}
 }
 
-func list_containers() {
+func listContainers() {
 	resp, err := http.Get(LIST_CONTAINER)
 	if err != nil {
 		fmt.Println(err)
@@ -64,7 +64,7 @@ func list_containers() {
 	fmt.Println(string(body))
 }
 
-func exec_container() {
+func execContainer() {
 	if len(os.Args) <= 4 {
 		help()
 		return
@@ -108,7 +108,7 @@ func exec_container() {
 	run.Wait()
 }
 
-func rm_container() {
+func rmContainer() {
 	if len(os.Args) != 4 {
 		help()
 		return
@@ -169,11 +169,11 @@ func main() {
 		case "run":
 			call(RUN_CONTAINER)
 		case "list":
-			list_containers()
+			listContainers()
 		case "exec":
-			exec_container()
+			execContainer()
 		case "rm":
-			rm_container()
+			rmContainer()
 		default:
 			help()
 		}
