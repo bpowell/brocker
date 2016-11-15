@@ -19,8 +19,8 @@ func main() {
 		fmt.Println(err)
 	}
 
-	mount_app := strings.Split(fmt.Sprintf("/bin/mount --bind /container/%s /app", os.Args[1]), " ")
-	if err := exec.Command(mount_app[0], mount_app[1:]...).Run(); err != nil {
+	mountApp := strings.Split(fmt.Sprintf("/bin/mount --bind /container/%s /app", os.Args[1]), " ")
+	if err := exec.Command(mountApp[0], mountApp[1:]...).Run(); err != nil {
 		fmt.Println(err)
 	}
 
