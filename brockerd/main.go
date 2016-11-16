@@ -11,26 +11,14 @@ import (
 	"path"
 	"strings"
 	"syscall"
-	"text/template"
 	"time"
 
 	"github.com/bpowell/brocker/container"
+	"github.com/bpowell/brocker/service"
 )
 
-type Service struct {
-	ContainterName  string
-	Name            string `json:"name"`
-	BridgeName      string
-	BridgeIP        string `json:"bridge-ip"`
-	Pid             int
-	Containers      map[string]container.Container
-	LoadBalanceType string
-	Servers         []string
-}
-
-var services map[string]Service
+var services map[string]service.Service
 var containers map[string]container.Container
-var nginxConfig *template.Template
 
 const (
 	bridgeNameBase = "brocker"
@@ -39,58 +27,9 @@ const (
 	CONTAIN_DIR    = "/container"
 )
 
-func (s *Service) reload() {
-	c, ok := s.Containers[s.ContainterName]
-	if !ok {
-		fmt.Println("Not a container", s.ContainterName)
-		return
-	}
-
-	if err := c.Exec("/usr/sbin/nginx -s reload -c /app/nginx.conf"); err != nil {
-		fmt.Println("Cannot reload nginx: ", err)
-		return
-	}
-}
-
-func (s *Service) Stop() {
-	c, ok := s.Containers[s.ContainterName]
-	if !ok {
-		fmt.Println("Not a container", s.ContainterName)
-		return
-	}
-
-	if err := c.Exec("/usr/sbin/nginx -s stop -c /app/nginx.conf"); err != nil {
-		fmt.Println(err)
-	}
-
-	for _, c := range s.Containers {
-		c.Close()
-	}
-
-	deleteBridge := strings.Split(fmt.Sprintf("ip link delete %s type bridge", s.BridgeName), " ")
-	if err := exec.Command(deleteBridge[0], deleteBridge[1:]...).Run(); err != nil {
-		fmt.Printf("Cannot delete bridge %s", s.BridgeName)
-	}
-}
-
-func (s *Service) writeConfig() {
-	myappconffile, err := os.OpenFile(fmt.Sprintf("%s/%s/myapp.conf", CONTAIN_DIR, s.ContainterName), os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer myappconffile.Close()
-
-	if err := nginxConfig.ExecuteTemplate(myappconffile, "myapp.conf.tmpl", s); err != nil {
-		fmt.Println(err)
-		return
-	}
-}
-
 func init() {
-	services = make(map[string]Service)
+	services = make(map[string]service.Service)
 	containers = make(map[string]container.Container)
-	nginxConfig = template.Must(template.ParseFiles("/etc/brocker/nginx.conf.tmpl", "/etc/brocker/myapp.conf.tmpl"))
 }
 
 func main() {
@@ -122,7 +61,7 @@ func serviceAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s := Service{
+	s := service.Service{
 		Containers: make(map[string]container.Container),
 	}
 
@@ -236,7 +175,7 @@ func containerRm(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Stopping container"))
 }
 
-func serviceCreateNetwork(s Service) error {
+func serviceCreateNetwork(s service.Service) error {
 	createBridge := strings.Split(fmt.Sprintf("/sbin/ip link add name %s type bridge", s.BridgeName), " ")
 	setBridgeUp := strings.Split(fmt.Sprintf("/sbin/ip link set %s up", s.BridgeName), " ")
 	setBridgeIP := strings.Split(fmt.Sprintf("/sbin/ifconfig %s %s", s.BridgeName, s.BridgeIP), " ")
@@ -282,33 +221,8 @@ func run(c container.Container, isNginx bool) {
 	}
 
 	if isNginx {
-		nginxconffile, err := os.Create(fmt.Sprintf("%s/%s/nginx.conf", CONTAIN_DIR, c.Name))
-		if err != nil {
-			fmt.Println(err)
-			nginxconffile.Close()
-			return
-		}
-
-		if err := nginxConfig.ExecuteTemplate(nginxconffile, "nginx.conf.tmpl", s); err != nil {
-			fmt.Println(err)
-			nginxconffile.Close()
-			return
-		}
-		nginxconffile.Close()
-
-		myappconffile, err := os.Create(fmt.Sprintf("%s/%s/myapp.conf", CONTAIN_DIR, c.Name))
-		if err != nil {
-			fmt.Println(err)
-			myappconffile.Close()
-			return
-		}
-
-		if err := nginxConfig.ExecuteTemplate(myappconffile, "myapp.conf.tmpl", s); err != nil {
-			fmt.Println(err)
-			myappconffile.Close()
-			return
-		}
-		myappconffile.Close()
+		s.ContainterName = c.Name
+		s.WriteConfig(CONTAIN_DIR)
 	}
 
 	args := strings.Split(fmt.Sprintf("%s %s %s", runcmd, c.Name, c.Command), " ")
@@ -365,11 +279,10 @@ func run(c container.Container, isNginx bool) {
 
 	if isNginx {
 		s.Pid = c.Pid
-		s.ContainterName = c.Name
 	} else {
 		s.Servers = append(s.Servers, fmt.Sprintf("%s:8080", c.IP))
-		s.writeConfig()
-		s.reload()
+		s.WriteConfig(CONTAIN_DIR)
+		s.Reload()
 	}
 	services[c.ServiceName] = s
 
