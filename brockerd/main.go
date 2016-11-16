@@ -18,16 +18,12 @@ import (
 )
 
 type Service struct {
-	ContainterName string
-	Name           string `json:"name"`
-	BridgeName     string
-	BridgeIP       string `json:"bridge-ip"`
-	Pid            int
-	Containers     map[string]container.Container
-	NginxUpStream
-}
-
-type NginxUpStream struct {
+	ContainterName  string
+	Name            string `json:"name"`
+	BridgeName      string
+	BridgeIP        string `json:"bridge-ip"`
+	Pid             int
+	Containers      map[string]container.Container
 	LoadBalanceType string
 	Servers         []string
 }
