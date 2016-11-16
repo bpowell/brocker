@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -15,6 +13,8 @@ import (
 	"syscall"
 	"text/template"
 	"time"
+
+	"github.com/bpowell/brocker/container"
 )
 
 type Service struct {
@@ -23,20 +23,8 @@ type Service struct {
 	BridgeName     string
 	BridgeIP       string `json:"bridge-ip"`
 	Pid            int
-	Containers     map[string]Container
+	Containers     map[string]container.Container
 	NginxUpStream
-}
-
-type Container struct {
-	Name        string
-	ServiceName string `json:"service-name"`
-	Command     string `json:"command"`
-	CopyFile    bool   `json:"copy-file"`
-	FileToCopy  string `json:"file"`
-	Pid         int
-	IP          string
-	StartTime   time.Time
-	VEth        string
 }
 
 type NginxUpStream struct {
@@ -45,7 +33,7 @@ type NginxUpStream struct {
 }
 
 var services map[string]Service
-var containers map[string]Container
+var containers map[string]container.Container
 var nginxConfig *template.Template
 
 const (
@@ -55,31 +43,27 @@ const (
 	CONTAIN_DIR    = "/container"
 )
 
-func (c *Container) setName() {
-	value := fmt.Sprintf("%s%s", c.StartTime, c.Command)
-	sha := sha1.New()
-	sha.Write([]byte(value))
-	c.Name = hex.EncodeToString(sha.Sum(nil))[:8]
-}
-
-func (c *Container) Close() {
-	if err := execInContainter("/bin/umount /app", c.Pid); err != nil {
-		fmt.Println("Cannot unmount /app: ", err)
+func (s *Service) reload() {
+	c, ok := s.Containers[s.ContainterName]
+	if !ok {
+		fmt.Println("Not a container", s.ContainterName)
+		return
 	}
 
-	p, _ := os.FindProcess(c.Pid)
-	p.Kill()
-}
-
-func (s *Service) reload() {
-	if err := execInContainter("/usr/sbin/nginx -s reload -c /app/nginx.conf", s.Pid); err != nil {
+	if err := c.Exec("/usr/sbin/nginx -s reload -c /app/nginx.conf"); err != nil {
 		fmt.Println("Cannot reload nginx: ", err)
 		return
 	}
 }
 
 func (s *Service) Stop() {
-	if err := execInContainter("/usr/sbin/nginx -s stop -c /app/nginx.conf", s.Pid); err != nil {
+	c, ok := s.Containers[s.ContainterName]
+	if !ok {
+		fmt.Println("Not a container", s.ContainterName)
+		return
+	}
+
+	if err := c.Exec("/usr/sbin/nginx -s stop -c /app/nginx.conf"); err != nil {
 		fmt.Println(err)
 	}
 
@@ -109,7 +93,7 @@ func (s *Service) writeConfig() {
 
 func init() {
 	services = make(map[string]Service)
-	containers = make(map[string]Container)
+	containers = make(map[string]container.Container)
 	nginxConfig = template.Must(template.ParseFiles("/etc/brocker/nginx.conf.tmpl", "/etc/brocker/myapp.conf.tmpl"))
 }
 
@@ -143,7 +127,7 @@ func serviceAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s := Service{
-		Containers: make(map[string]Container),
+		Containers: make(map[string]container.Container),
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
@@ -170,7 +154,7 @@ func serviceAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c := Container{
+	c := container.Container{
 		Name:        fmt.Sprintf("%s-nginx", s.Name),
 		ServiceName: s.Name,
 		Command:     fmt.Sprintf("%s -c %s", path, "/app/nginx.conf"),
@@ -187,7 +171,7 @@ func containerRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var c Container
+	var c container.Container
 	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -277,7 +261,7 @@ func serviceCreateNetwork(s Service) error {
 	return nil
 }
 
-func run(c Container, isNginx bool) {
+func run(c container.Container, isNginx bool) {
 	fmt.Println("running parent")
 	s := services[c.ServiceName]
 	runcmd, err := exec.LookPath("brocker-run")
@@ -287,7 +271,7 @@ func run(c Container, isNginx bool) {
 	}
 
 	c.StartTime = time.Now()
-	c.setName()
+	c.SetName()
 
 	if err := os.Mkdir(fmt.Sprintf("%s/%s", CONTAIN_DIR, c.Name), 0644); err != nil {
 		fmt.Println(err)
@@ -375,7 +359,7 @@ func run(c Container, isNginx bool) {
 	ip := net.IPv4(bridgeip[12], bridgeip[13], bridgeip[14], lastOctet)
 	c.IP = ip.String()
 
-	if err := execInContainter(fmt.Sprintf("/sbin/ifconfig veth1 %s", ip.String()), c.Pid); err != nil {
+	if err := c.Exec(fmt.Sprintf("/sbin/ifconfig veth1 %s", ip.String())); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -399,13 +383,4 @@ func run(c Container, isNginx bool) {
 
 	delete(containers, c.Name)
 	delete(services[c.ServiceName].Containers, c.Name)
-}
-
-func execInContainter(cmd string, pid int) error {
-	command := strings.Split(fmt.Sprintf("nsenter --target %d --pid --net --mount %s", pid, cmd), " ")
-	if err := exec.Command(command[0], command[1:]...).Run(); err != nil {
-		return err
-	}
-
-	return nil
 }
