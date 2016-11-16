@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Contains all information needed to run a container.
+// Container has all information needed to run a container.
 type Container struct {
 	Name        string
 	ServiceName string `json:"service-name"`
