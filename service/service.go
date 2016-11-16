@@ -16,6 +16,7 @@ func init() {
 	nginxConfig = template.Must(template.ParseFiles("/etc/brocker/nginx.conf.tmpl", "/etc/brocker/myapp.conf.tmpl"))
 }
 
+// Service contains all things to run a service
 type Service struct {
 	ContainterName  string
 	Name            string `json:"name"`
@@ -27,6 +28,7 @@ type Service struct {
 	Servers         []string
 }
 
+// Reload reloads all the nginx configs
 func (s *Service) Reload() {
 	c, ok := s.Containers[s.ContainterName]
 	if !ok {
@@ -40,6 +42,7 @@ func (s *Service) Reload() {
 	}
 }
 
+// Stop stops all containers and the service
 func (s *Service) Stop() {
 	c, ok := s.Containers[s.ContainterName]
 	if !ok {
@@ -61,6 +64,7 @@ func (s *Service) Stop() {
 	}
 }
 
+// WriteConfig writes all the nginx configs
 func (s *Service) WriteConfig(path string) {
 	nginxconffile, err := os.Create(fmt.Sprintf("%s/%s/nginx.conf", path, s.ContainterName))
 	if err != nil {
