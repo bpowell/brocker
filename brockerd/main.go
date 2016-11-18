@@ -213,6 +213,13 @@ func run(c container.Container, isNginx bool) {
 		return
 	}
 
+	stdouterr, err := os.Create(fmt.Sprintf("%s/%s/out", CONTAIN_DIR, c.Name))
+	if err != nil {
+		fmt.Println("Cannot create out:", err)
+		return
+	}
+	defer stdouterr.Close()
+
 	if c.CopyFile {
 		if err := exec.Command("cp", c.FileToCopy, fmt.Sprintf("%s/%s/%s", CONTAIN_DIR, c.Name, path.Base(c.FileToCopy))).Run(); err != nil {
 			fmt.Println(err)
@@ -232,8 +239,8 @@ func run(c container.Container, isNginx bool) {
 		Args: args,
 	}
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = stdouterr
+	cmd.Stderr = stdouterr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWPID |
 			syscall.CLONE_NEWNS |
