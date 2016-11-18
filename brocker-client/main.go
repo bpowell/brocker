@@ -15,7 +15,7 @@ const (
 	RUN_CONTAINER  = "http://localhost:3000/api/v1/container/run"
 	LIST_CONTAINER = "http://localhost:3000/api/v1/container/list"
 	EXEC_CONTAINER = "http://localhost:3000/api/v1/container/exec"
-	RM_CONTAINER   = "http://localhost:3000/api/v1/container/rm"
+	STOP_CONTAINER = "http://localhost:3000/api/v1/container/stop"
 )
 
 func call(url string) {
@@ -108,7 +108,7 @@ func execContainer() {
 	run.Wait()
 }
 
-func rmContainer() {
+func stopContainer() {
 	if len(os.Args) != 4 {
 		help()
 		return
@@ -116,7 +116,7 @@ func rmContainer() {
 
 	raw := []byte(fmt.Sprintf("{\"name\":\"%s\"}", os.Args[3]))
 	fmt.Println(string(raw))
-	req, err := http.NewRequest("POST", RM_CONTAINER, bytes.NewBuffer(raw))
+	req, err := http.NewRequest("POST", STOP_CONTAINER, bytes.NewBuffer(raw))
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -143,7 +143,7 @@ func help() {
 	fmt.Println("\trun filename.json - Runs command specified in filename.json")
 	fmt.Println("\texec container_hash command... - Runs specified command in container")
 	fmt.Println("\tlist - Lists all running containers")
-	fmt.Println("\trm container_hash - Stops container")
+	fmt.Println("\tstop container_hash - Stops container")
 	fmt.Println()
 
 	fmt.Println("service:")
@@ -172,8 +172,8 @@ func main() {
 			listContainers()
 		case "exec":
 			execContainer()
-		case "rm":
-			rmContainer()
+		case "stop":
+			stopContainer()
 		default:
 			help()
 		}

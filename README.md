@@ -21,7 +21,7 @@ This is the client interface to brockerd.
   1. run filename.json - Runs command specified in filename.json
   2. exec container_hash command... - Runs specified command in container
   3. list - Lists all running containers
-  4. rm container_hash - Stops container
+  4. stop container_hash - Stops container
 2. service
   1. add filename.json - Creates a service with details from filename.json
 

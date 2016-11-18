@@ -48,7 +48,7 @@ func main() {
 	http.HandleFunc("/api/v1/container/run", containerRun)
 	http.HandleFunc("/api/v1/container/list", containerList)
 	http.HandleFunc("/api/v1/container/exec", containerExec)
-	http.HandleFunc("/api/v1/container/rm", containerRm)
+	http.HandleFunc("/api/v1/container/stop", containerStop)
 	err := http.ListenAndServe(":3000", nil)
 	if err != nil {
 		fmt.Println(err)
@@ -151,7 +151,7 @@ func containerExec(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func containerRm(w http.ResponseWriter, r *http.Request) {
+func containerStop(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Invalid Request!", http.StatusMethodNotAllowed)
 		return
