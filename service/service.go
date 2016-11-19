@@ -44,16 +44,6 @@ func (s *Service) Reload() {
 
 // Stop stops all containers and the service
 func (s *Service) Stop() {
-	c, ok := s.Containers[s.ContainterName]
-	if !ok {
-		fmt.Println("Not a container", s.ContainterName)
-		return
-	}
-
-	if err := c.Exec("/usr/sbin/nginx -s stop -c /app/nginx.conf"); err != nil {
-		fmt.Println(err)
-	}
-
 	for _, c := range s.Containers {
 		c.Close()
 	}
