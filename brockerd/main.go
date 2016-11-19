@@ -207,13 +207,20 @@ func run(c container.Container, isNginx bool) {
 
 	c.StartTime = time.Now()
 	c.SetName()
+	c.Active = true
+	c.Directory = fmt.Sprintf("%s/%s", CONTAIN_DIR, c.Name)
+	c.VEth = fmt.Sprintf("%s%d", vethNameBase, len(containers))
 
-	if err := os.Mkdir(fmt.Sprintf("%s/%s", CONTAIN_DIR, c.Name), 0644); err != nil {
+	defer c.WriteConfig()
+
+	if err := os.Mkdir(c.Directory, 0644); err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	stdouterr, err := os.Create(fmt.Sprintf("%s/%s/out", CONTAIN_DIR, c.Name))
+	c.WriteConfig()
+
+	stdouterr, err := os.Create(fmt.Sprintf("%s/out", c.Directory))
 	if err != nil {
 		fmt.Println("Cannot create out:", err)
 		return
@@ -221,7 +228,7 @@ func run(c container.Container, isNginx bool) {
 	defer stdouterr.Close()
 
 	if c.CopyFile {
-		if err := exec.Command("cp", c.FileToCopy, fmt.Sprintf("%s/%s/%s", CONTAIN_DIR, c.Name, path.Base(c.FileToCopy))).Run(); err != nil {
+		if err := exec.Command("cp", c.FileToCopy, fmt.Sprintf("%s/%s", c.Directory, path.Base(c.FileToCopy))).Run(); err != nil {
 			fmt.Println(err)
 			return
 		}
@@ -252,7 +259,6 @@ func run(c container.Container, isNginx bool) {
 	}
 
 	c.Pid = cmd.Process.Pid
-	c.VEth = fmt.Sprintf("%s%d", vethNameBase, len(containers))
 	link := strings.Split(fmt.Sprintf("/sbin/ip link add name %s type veth peer name veth1 netns %d", c.VEth, c.Pid), " ")
 	if err := exec.Command(link[0], link[1:]...).Run(); err != nil {
 		fmt.Println(err)
@@ -294,9 +300,11 @@ func run(c container.Container, isNginx bool) {
 	services[c.ServiceName] = s
 
 	fmt.Println(cmd.Process.Pid)
+	c.WriteConfig()
 
 	cmd.Wait()
 
+	c.Active = false
 	delete(containers, c.Name)
 	delete(services[c.ServiceName].Containers, c.Name)
 }
