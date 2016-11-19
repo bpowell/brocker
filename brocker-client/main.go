@@ -2,12 +2,16 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
+
+	"github.com/bpowell/brocker/container"
 )
 
 const (
@@ -61,7 +65,16 @@ func listContainers() {
 		return
 	}
 
-	fmt.Println(string(body))
+	var containers []container.Container
+	if err := json.Unmarshal(body, &containers); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println("Name\t\tTime started\t\t\tRunning\tService Name\t\tCommand")
+	for _, c := range containers {
+		fmt.Printf("%s\t%s\t%t\t%s\t\t%s\n", c.Name, c.StartTime.Format(time.UnixDate), c.Active, c.ServiceName, c.Command)
+	}
 }
 
 func execContainer() {
