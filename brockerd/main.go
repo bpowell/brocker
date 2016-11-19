@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -123,7 +124,30 @@ func containerRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func containerList(w http.ResponseWriter, r *http.Request) {
-	if err := json.NewEncoder(w).Encode(containers); err != nil {
+	files, err := ioutil.ReadDir(CONTAIN_DIR)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var all []container.Container
+	for _, f := range files {
+		raw, err := ioutil.ReadFile(fmt.Sprintf("%s/%s/config", CONTAIN_DIR, f.Name()))
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		var c container.Container
+
+		if err := json.Unmarshal(raw, &c); err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		all = append(all, c)
+	}
+
+	if err := json.NewEncoder(w).Encode(all); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
