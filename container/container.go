@@ -3,6 +3,7 @@ package container
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -21,6 +22,8 @@ type Container struct {
 	IP          string
 	StartTime   time.Time
 	VEth        string
+	Directory   string
+	Active      bool
 }
 
 // SetName sets the name of the container based on start time and the command being run.
@@ -33,12 +36,14 @@ func (c *Container) SetName() {
 
 // Close shutdowns the container.
 func (c *Container) Close() {
+	c.Active = false
 	if err := c.Exec("/bin/umount /app"); err != nil {
 		fmt.Println("Cannot unmount /app: ", err)
 	}
 
 	p, _ := os.FindProcess(c.Pid)
 	p.Kill()
+	c.WriteConfig()
 }
 
 // Exec executes command inside of the container.
@@ -49,4 +54,24 @@ func (c *Container) Exec(cmd string) error {
 	}
 
 	return nil
+}
+
+// WriteConfig writes the container struct to a file
+func (c *Container) WriteConfig() {
+	fmt.Println("writing config")
+	raw, err := json.Marshal(c)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	file, err := os.Create(fmt.Sprintf("%s/config", c.Directory))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer file.Close()
+
+	file.Write(raw)
+	fmt.Println("done writing config")
 }
