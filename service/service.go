@@ -30,6 +30,7 @@ type Service struct {
 	ipPool          []string
 }
 
+// NewIPPool creates a new pool for IP addresses
 func (s *Service) NewIPPool() {
 	bridgeip := net.ParseIP(s.BridgeIP)
 
@@ -38,6 +39,7 @@ func (s *Service) NewIPPool() {
 	}
 }
 
+// NextIP give out the next IP from the pool
 func (s *Service) NextIP() string {
 	ip := s.ipPool[0]
 	s.ipPool = s.ipPool[1:]
@@ -45,6 +47,7 @@ func (s *Service) NextIP() string {
 	return ip
 }
 
+// ReturnIP returns an IP to the pool
 func (s *Service) ReturnIP(ip string) {
 	s.ipPool = append(s.ipPool, ip)
 }
