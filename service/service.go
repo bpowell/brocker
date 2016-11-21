@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"html/template"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -26,6 +27,26 @@ type Service struct {
 	Containers      map[string]container.Container
 	LoadBalanceType string
 	Servers         []string
+	ipPool          []string
+}
+
+func (s *Service) NewIPPool() {
+	bridgeip := net.ParseIP(s.BridgeIP)
+
+	for i := 3; i < 50; i++ {
+		s.ipPool = append(s.ipPool, net.IPv4(bridgeip[12], bridgeip[13], bridgeip[14], byte(i)).String())
+	}
+}
+
+func (s *Service) NextIP() string {
+	ip := s.ipPool[0]
+	s.ipPool = s.ipPool[1:]
+
+	return ip
+}
+
+func (s *Service) ReturnIP(ip string) {
+	s.ipPool = append(s.ipPool, ip)
 }
 
 // Reload reloads all the nginx configs

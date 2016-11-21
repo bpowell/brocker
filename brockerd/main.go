@@ -77,6 +77,7 @@ func serviceAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.BridgeName = fmt.Sprintf("%s%d", bridgeNameBase, len(services)+1)
+	s.NewIPPool()
 
 	s.LoadBalanceType = "least_conn"
 	if err := serviceCreateNetwork(s); err != nil {
@@ -301,12 +302,14 @@ func run(c container.Container, isNginx bool) {
 		return
 	}
 
-	bridgeip := net.ParseIP(s.BridgeIP)
-	lastOctet := bridgeip[15] + byte(len(s.Containers)+1)
-	ip := net.IPv4(bridgeip[12], bridgeip[13], bridgeip[14], lastOctet)
-	c.IP = ip.String()
+	if isNginx {
+		bridgeip := net.ParseIP(s.BridgeIP)
+		c.IP = net.IPv4(bridgeip[12], bridgeip[13], bridgeip[14], 2).String()
+	} else {
+		c.IP = s.NextIP()
+	}
 
-	if err := c.Exec(fmt.Sprintf("/sbin/ifconfig veth1 %s", ip.String())); err != nil {
+	if err := c.Exec(fmt.Sprintf("/sbin/ifconfig veth1 %s", c.IP)); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -329,6 +332,7 @@ func run(c container.Container, isNginx bool) {
 	cmd.Wait()
 
 	c.Active = false
+	s.ReturnIP(c.IP)
 	delete(containers, c.Name)
 	delete(services[c.ServiceName].Containers, c.Name)
 }
