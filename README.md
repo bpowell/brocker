@@ -16,14 +16,14 @@ This is the daemon that sits in the background and listens on port 3000 for conn
 ## brocker-client
 This is the client interface to brockerd.
 
-### Commands:
+### Commands for brocker-client:
 1. container
-  1. run filename.json - Runs command specified in filename.json
-  2. exec container_hash command... - Runs specified command in container
-  3. list - Lists all running containers
-  4. stop container_hash - Stops container
+   1. run filename.json - Runs command specified in filename.json
+   2. exec container_hash command... - Runs specified command in container
+   3. list - Lists all running containers
+   4. stop container_hash - Stops container
 2. service
-  1. add filename.json - Creates a service with details from filename.json
+   1. add filename.json - Creates a service with details from filename.json
 
 ## brocker-run
 The init process for the container. This mounts the /app directory for the container to write its files to.
